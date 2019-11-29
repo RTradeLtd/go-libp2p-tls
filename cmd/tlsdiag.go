@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/libp2p/go-libp2p-tls/cmd/tlsdiag"
+	"github.com/RTradeLtd/go-libp2p-tls/cmd/tlsdiag"
 )
 
 func main() {
