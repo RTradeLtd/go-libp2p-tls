@@ -62,6 +62,11 @@ func (i *Identity) ConfigForAny() (*tls.Config, <-chan ic.PubKey) {
 	return i.ConfigForPeer("")
 }
 
+// ReusableConfigForAny is a short-hand for ReusableConfigForPeer("").
+func (i *Identity) ReusableConfigForAny() *tls.Config {
+	return i.ReusableConfigForPeer("")
+}
+
 // ConfigForPeer creates a new single-use tls.Config that verifies the peer's
 // certificate chain and returns the peer's public key via the channel. If the
 // peer ID is empty, the returned config will accept any peer.
@@ -70,6 +75,19 @@ func (i *Identity) ConfigForAny() (*tls.Config, <-chan ic.PubKey) {
 // incoming or outgoing connection.
 func (i *Identity) ConfigForPeer(remote peer.ID) (*tls.Config, <-chan ic.PubKey) {
 	keyCh := make(chan ic.PubKey, 1)
+	return i.configForPeer(remote, keyCh), keyCh
+}
+
+// ReusableConfigForPeer creates a new multi-use tls.Config that verifies the peer's
+// certificate chain. If the peer ID is empty, the returned config will accept any peer.
+//
+// It should be used to create a new tls.Config before securing either an
+// incoming or outgoing connection.
+func (i *Identity) ReusableConfigForPeer(remote peer.ID) *tls.Config {
+	return i.configForPeer(remote, nil)
+}
+
+func (i *Identity) configForPeer(remote peer.ID, keyCh chan ic.PubKey) *tls.Config {
 	// We need to check the peer ID in the VerifyPeerCertificate callback.
 	// The tls.Config it is also used for listening, and we might also have concurrent dials.
 	// Clone it so we can check for the specific peer ID we're dialing here.
@@ -77,7 +95,9 @@ func (i *Identity) ConfigForPeer(remote peer.ID) (*tls.Config, <-chan ic.PubKey)
 	// We're using InsecureSkipVerify, so the verifiedChains parameter will always be empty.
 	// We need to parse the certificates ourselves from the raw certs.
 	conf.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-		defer close(keyCh)
+		if keyCh != nil {
+			defer close(keyCh)
+		}
 
 		chain := make([]*x509.Certificate, len(rawCerts))
 		for i := 0; i < len(rawCerts); i++ {
@@ -95,10 +115,12 @@ func (i *Identity) ConfigForPeer(remote peer.ID) (*tls.Config, <-chan ic.PubKey)
 		if remote != "" && !remote.MatchesPublicKey(pubKey) {
 			return errors.New("peer IDs don't match")
 		}
-		keyCh <- pubKey
+		if keyCh != nil {
+			keyCh <- pubKey
+		}
 		return nil
 	}
-	return conf, keyCh
+	return conf
 }
 
 // PubKeyFromCertChain verifies the certificate chain and extract the remote's public key.
