@@ -1,4 +1,4 @@
-module github.com/libp2p/go-libp2p-tls
+module github.com/RTradeLtd/go-libp2p-tls
 
 go 1.12
 
