@@ -113,7 +113,11 @@ func (i *Identity) configForPeer(remote peer.ID, keyCh chan ic.PubKey) *tls.Conf
 			return err
 		}
 		if remote != "" && !remote.MatchesPublicKey(pubKey) {
-			return errors.New("peer IDs don't match")
+			peerID, err := peer.IDFromPublicKey(pubKey)
+			if err != nil {
+				peerID = peer.ID(fmt.Sprintf("(not determined: %s)", err.Error()))
+			}
+			return fmt.Errorf("peer IDs don't match: expected %s, got %s", remote, peerID)
 		}
 		if keyCh != nil {
 			keyCh <- pubKey
